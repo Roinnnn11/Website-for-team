@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热力图与详细数据</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script type="text/javascript" src="http://127.0.0.1:8000/static/js/echarts.min.js"></script>
+    <script src="http://127.0.0.1:8000/static/js/jquery.min.js"></script>
+    <style>
+        body {
+            padding-top: 0;
+            position: relative; /* 添加相对定位 */
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            background-color: rgba(0, 38, 89, 0.8);
+        }
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 21, 41, 0.7);
+            z-index: 0;
+        }
+        .heatmap-container {
+            margin-top: 10vh; /* 用margin代替padding */
+            padding-top: 0; /* 移除原有padding */
+            height: 90vh; /* 总高度减去header高度 */
+            width: 45%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 38, 89, 0.8);
+        }
+        #heatmap {
+            width: 100%;
+            height: 80%;
+            border: 1px solid #444;
+        }
+        .data-container {
+            margin-top: 10vh; /* 用margin代替padding */
+            padding-top: 0; /* 移除原有padding */
+            height: 90vh; /* 总高度减去header高度 */
+            width: 55%;
+            background-color: rgba(0, 38, 89, 0.8);
+            color: #fff;
+            overflow-y: auto;
+            z-index: 1;
+        }
+        .data-container h2 {
+            margin-top: 0;
+        }
+        .data-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #444;
+            border-radius: 5px;
+        }
+        .data-item:hover {
+            background-color: #555;
+        }
+        .header {
+            grid-column: 1 / 4;
+            text-align: center;
+            font-size: 4vh;
+            line-height: 8vh;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            position: fixed;
+            top:0;
+            overflow: hidden;
+            z-index: 10;
+            height: 10vh; /* 明确设置高度 */
+            line-height: 10vh; /* 垂直居中 */
+            animation: headerGlow 3s infinite;
+            color: #fff;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                    transparent,
+                    rgba(32, 167, 255, 0.2),
+                    transparent);
+            animation: headerScan 8s linear infinite;
+        }
+        /* 数据表格式 */
+        .data-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        /* .data-table th {
+            background-color: #f2f2f2;
+        } */
+
+        @keyframes headerGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(32, 167, 255, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(32, 167, 255, 0.5);
+            }
+        }
+
+        @keyframes headerScan {
+            0% {
+                left: -100%;
+            }
+
+            100% {
+                left: 200%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">预测端数据热力图及其数据</div>
+    
+    <div class="heatmap-container">
+        <div id="heatmap"></div>
+    </div>
+    <div class="data-container">
+        <h2>详细数据（相关性系数具体值）</h2>
+        <div id="data-list"></div>
+    </div>
+
+    <script>
+        // 热力图数据
+        const zData = [
+           [1.000000,0.467600,-0.402077,0.994374,0.651361,-0.026596,0.994089,0.661169],
+           [0.467600,1.000000,-0.716377,0.486811,0.450114,-0.019951,0.488911,0.411398],
+           [-0.402077,-0.716377,1.000000,-0.409465,-0.290376,0.238168,-0.394345,-0.246355],
+           [0.994374,0.486811,-0.409465,1.000000,0.654299,-0.029512,0.991649,0.648654],
+           [0.651361,0.450114,-0.290376,0.654299,1.000000,-0.010362,0.632302,0.992709],
+           [-0.026596,-0.01995,0.238168,-0.029512,-0.010362,1.000000,-0.026035,0.029364],
+           [0.994089,0.488911,-0.394345,0.991649,0.632302,-0.026035,1.000000,0.644543],
+           [ 0.661169,0.411398,-0.246355,0.648654,0.992709,0.029364,0.644543,1.000000],
+        ];
+        const xData = ['Active_Power', 'Weather_Temperature_Celsius', 'Weather_Relative_Humidity', 'Global_Horizontal_Radiation', 
+        'Diffuse_Horizontal_Radiation','Weather_Daily_Rainfall',' Radiation_Global_Tilted','Radiation_Diffuse_Tilted'];
+        const yData = ['Active_Power', 'Weather_Temperature_Celsius', 'Weather_Relative_Humidity', 'Global_Horizontal_Radiation', 
+        'Diffuse_Horizontal_Radiation','Weather_Daily_Rainfall',' Radiation_Global_Tilted','Radiation_Diffuse_Tilted'];
+
+        const xDataSplit = xData.map(label => {
+            const parts = label.split('_'); // 假设变量名称以 `_` 分隔
+            return parts.join('<br>'); // 将每部分换行显示
+        });
+
+        const yDataSplit = yData.map(label => {
+            const parts = label.split('_');
+            return parts.join('<br>');
+        });
+        // 创建热力图
+        const data = [{
+            z: zData,
+            x: xDataSplit,
+            y: yDataSplit,
+            // customdata: xData.map((x, i) => [xData[i], yData[i]]),// 自定义数据，包含完整的 x 和 y 数据
+            type: 'heatmap',
+            colorscale: 'RdBu',
+             hovertemplate: 'X: %{x}<br> Y: %{y}<br>Value: %{z}<extra></extra>' // 使用 customdata
+        }];
+
+        const layout = {
+            title: 'heatmap',
+            xaxis: {
+                // title: 'X-axis',
+                tickangle: 0,
+                tickfont: { size: 10 }
+            },
+            yaxis: {
+                // title: 'Y-axis',
+                tickangle: 0,
+                tickfont: { size: 10 }
+            },
+            margin: { l: 100, r: 50, t: 50, b: 50 }
+        };
+
+        Plotly.newPlot('heatmap', data, layout);
+
+        // 动态生成右侧详细数据
+        // function generateDataList(zData, xData, yData) {
+        //     const dataList = document.getElementById('data-list');
+        //     dataList.innerHTML = ''; // 清空已有数据
+
+        //     zData.forEach((row, rowIndex) => {
+        //         row.forEach((value, colIndex) => {
+        //             const itemDiv = document.createElement('div');
+        //             itemDiv.className = 'data-item';
+        //             itemDiv.textContent = `X: ${xData[colIndex]}, Y: ${yData[rowIndex]}, Value: ${value}`;
+        //             dataList.appendChild(itemDiv);
+        //         });
+        //     });
+        // }
+
+        // // 调用函数生成详细数据
+        // generateDataList(zData, xData, yData);
+        function generateDataList(zData, xData, yData) {
+            const dataList = document.getElementById('data-list');
+            dataList.innerHTML = ''; // 清空已有数据
+
+            const table = document.createElement('table');
+            table.className = 'data-table';
+
+            // 创建表头
+            const headerRow = document.createElement('tr');
+            const headerCells = ['X', 'Y', 'Value'].map(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                return th;
+            });
+            headerCells.forEach(cell => headerRow.appendChild(cell));
+            table.appendChild(headerRow);
+
+    // 创建数据行
+            zData.forEach((row, rowIndex) => {
+                row.forEach((value, colIndex) => {
+                    const rowElement = document.createElement('tr');
+                    const cells = [
+                        { text: xData[colIndex] },
+                        { text: yData[rowIndex] },
+                        { text: value.toFixed(4) } // 保留4位小数
+                    ].map(cellData => {
+                        const td = document.createElement('td');
+                        td.textContent = cellData.text;
+                        return td;
+                    });
+                    cells.forEach(cell => rowElement.appendChild(cell));
+                    table.appendChild(rowElement);
+                });
+            });
+
+            dataList.appendChild(table);
+        }
+        generateDataList(zData,xData,yData);
+    </script>
+</body>
+</html>
