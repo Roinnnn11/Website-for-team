@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>热力图与详细数据</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script type="text/javascript" src="http://127.0.0.1:8000/static/js/echarts.min.js"></script>
-    <script src="http://127.0.0.1:8000/static/js/jquery.min.js"></script>
+    <!-- <script type="text/javascript" src="http://127.0.0.1:8000/static/js/echarts.min.js"></script>
+    <script src="http://127.0.0.1:8000/static/js/jquery.min.js"></script> -->
     <style>
         body {
             padding-top: 0;
@@ -169,16 +169,25 @@
             const parts = label.split('_');
             return parts.join('<br>');
         });
-        // 创建热力图
+        // 用于悬浮显示的text
+        const text = zData.map((row, i) => 
+        row.map((value, j) => `X: ${xData[j]}<br>Y: ${yData[i]}<br>Value: ${value}`)
+        );
+
         const data = [{
-            z: zData,
-            x: xDataSplit,
-            y: yDataSplit,
-            // customdata: xData.map((x, i) => [xData[i], yData[i]]),// 自定义数据，包含完整的 x 和 y 数据
-            type: 'heatmap',
-            colorscale: 'RdBu',
-             hovertemplate: 'X: %{x}<br> Y: %{y}<br>Value: %{z}<extra></extra>' // 使用 customdata
+            z: zData,  //  z 数据
+            x: xDataSplit,  // 用于显示的 x 数据
+            y: yDataSplit,  // 用于显示的 y 数据
+            text: text, // 将 xData 和 yData 存储在 text 中
+            type: 'heatmap', 
+            colorscale: 'RdBu', 
+            hovertemplate: '%{text}<extra></extra>' ,// 引用 text
+            hoverlabel: {
+                align: 'left' // 设置悬浮层文本左对齐
+            }
         }];
+        
+
 
         const layout = {
             title: 'heatmap',
